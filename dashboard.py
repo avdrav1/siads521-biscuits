@@ -14,7 +14,14 @@ app = marimo.App(width="full", app_title="Thirty Years of Disco Biscuits Setlist
 
 
 @app.cell
-def _():
+async def _():
+    import sys
+
+    if "pyodide" in sys.modules:
+        import micropip
+
+        await micropip.install("plotly")
+
     import marimo as mo
     import pandas as pd
     import plotly.express as px
@@ -26,10 +33,23 @@ def _():
 @app.cell
 def _(mo, pd):
     # CSVs live in public/ beside this file so the WebAssembly export bundles them.
+    import io
+    from urllib.request import urlopen
+
     data_dir = mo.notebook_location() / "public"
-    shows = pd.read_csv(str(data_dir / "shows.csv"), parse_dates=["date"])
-    song_shows = pd.read_csv(str(data_dir / "song_shows.csv"), parse_dates=["date"])
-    segue_pairs = pd.read_csv(str(data_dir / "segue_pairs.csv"), parse_dates=["date"])
+
+    def load_csv(name):
+        path = str(data_dir / name)
+        if path.startswith("http"):
+            # In the browser the path is a URL. Read the bytes ourselves: GitHub Pages
+            # serves gzip, the browser already unzips it, and pandas would unzip again.
+            with urlopen(path) as response:
+                return pd.read_csv(io.BytesIO(response.read()), parse_dates=["date"])
+        return pd.read_csv(path, parse_dates=["date"])
+
+    shows = load_csv("shows.csv")
+    song_shows = load_csv("song_shows.csv")
+    segue_pairs = load_csv("segue_pairs.csv")
     return segue_pairs, shows, song_shows
 
 
